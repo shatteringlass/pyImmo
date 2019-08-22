@@ -36,14 +36,14 @@ class Scraper:
 
 class ImmoScraper(Scraper):
 
+    ADS_NO = 0
     MAX_ADS = 10000
 
-    def get_pages(self, start=1):
-        if not(isinstance(start, int)) or not(isinstance(end, int)):
-            raise Exception
-        i = start
-        yield f"https://www.immobiliare.it/vendita-case/roma/?criterio=rilevanza&pag={i}"
-        i += 1
+    def get_pages(self):
+        i = 1
+        while i:
+            yield f"https://www.immobiliare.it/vendita-case/roma/?criterio=rilevanza&pag={i}"
+            i += 1
 
     def get_urls_from_page(self, page):
         urls = list()
@@ -55,18 +55,38 @@ class ImmoScraper(Scraper):
                 urls.append((re.search(r'/(\d+)/', url).group(1),))
         return urls
 
-
     def get_all_urls(self):
         for page_url in self.get_pages():
-            logging.debug(f"{'#'*20}\nNow scraping page {page_url}\n{'#'*20}")
+            logging.debug(f"Now scraping page {page_url}")
             urls = self.get_urls_from_page(page_url)
-            logging.debug(f"Found {len(urls)} urls:\n{urls}")
+            self.ADS_NO += len(urls)
             yield urls
+            if self.ADS_NO >= self.MAX_ADS:
+                logging.debug("URL collection completed, exiting.")
+                break
             logging.debug("Page completed, now sleeping for 1sec")
             time.sleep(1)
 
-
-    def get_ad(id):
+    def get_ad(self, id):
         page = f"https://www.immobiliare.it/annunci/{id}/"
         soup = BeautifulSoup(self.base_request(page).text, 'lxml')
-        price = soup.find('li', {'class': 'features__price'}).text
+        title = soup.find('h1', {'class': 'title-detail'}).text.strip()
+        if 'asta' in title.lower() or title.lower().startswith('villa'):
+            return None
+        desc = soup.find('div', {'class': 'description-text'}).text.strip()
+        p = soup.find('li', {'class': 'features__price'}).text.strip()
+        try:
+            price = int(''.join(re.findall(r'(\d+)', p)))
+        except ValueError:
+            price = -1 # Prezzo su richiesta
+        features = soup.find('ul', {'class': 'features__list'}).find_all('li')
+        rooms, size, brooms = [f.find('span').text.strip()
+                               for f in features[:3]]
+        try:
+            level = features[-1].find('abbr').text.strip()
+        except AttributeError:
+            level = 0
+        ha = HouseAdvert(adid=id, title=title, description=desc, price=price,
+                         rooms=rooms, size=int(size), bathrooms=brooms, level=level)
+        logging.debug(ha)
+        return ha
