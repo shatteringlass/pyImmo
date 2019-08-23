@@ -21,7 +21,7 @@ def create_or_open_db(db_file=DB_PATH):
 
 
 def get_data(conn):
-    SQL = "SELECT ID FROM ADS;"
+    SQL = "SELECT ID FROM ADS2;"
     cur = conn.cursor()
     cur.execute(SQL)
     return cur;

@@ -71,22 +71,44 @@ class ImmoScraper(Scraper):
         page = f"https://www.immobiliare.it/annunci/{id}/"
         soup = BeautifulSoup(self.base_request(page).text, 'lxml')
         title = soup.find('h1', {'class': 'title-detail'}).text.strip()
+        
         if 'asta' in title.lower() or title.lower().startswith('villa'):
             return None
-        desc = soup.find('div', {'class': 'description-text'}).text.strip()
+        
+        desc = None
+        size = None
+        level = 0
+        brooms = None
+        rooms = None
+
         p = soup.find('li', {'class': 'features__price'}).text.strip()
         try:
             price = int(''.join(re.findall(r'(\d+)', p)))
         except ValueError:
-            price = -1 # Prezzo su richiesta
+            price = -1  # Prezzo su richiesta
+
         features = soup.find('ul', {'class': 'features__list'}).find_all('li')
-        rooms, size, brooms = [f.find('span').text.strip()
-                               for f in features[:3]]
+
+        for f in features:
+            if 'locali' in f.text:
+                rooms = f.find('span').text.strip()
+            elif 'bagni' in f.text:
+                brooms = f.find('span').text.strip()
+            elif 'piano' in f.text:
+                level = f.find('abbr').text.strip()
+            elif 'superficie' in f.text:
+                size = f.find('span').text.strip()
+
+        if not(size):
+            size = int(float(soup.select(
+                'div.row.overflow-x-auto.box-consistenze table tfoot tr td div')[0].text.replace(',', '.')))
+
         try:
-            level = features[-1].find('abbr').text.strip()
+            desc = soup.find('div', {'class': 'description-text'}).text.strip()
         except AttributeError:
-            level = 0
+            pass
+
         ha = HouseAdvert(adid=id, title=title, description=desc, price=price,
-                         rooms=rooms, size=int(size), bathrooms=brooms, level=level)
+                         rooms=rooms, size=size, bathrooms=brooms, level=level)
         logging.debug(ha)
         return ha
