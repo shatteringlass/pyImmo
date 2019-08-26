@@ -26,9 +26,11 @@ def load_ads(scraper, db_conn):
         ads.append(a.to_tuple())
         if len(ads) == GROUP_SIZE:
             db.insert_data(conn=db_conn, data=ads)
+            db.delete_data(conn=db_conn, ids=[(ad[0],) for ad in ads])
             ads = list()
         time.sleep(1)
     db.insert_data(conn=db_conn, data=ads)
+    db.delete_data(conn=db_conn, ids=[(ad[0],) for ad in ads])
 
 
 def main():

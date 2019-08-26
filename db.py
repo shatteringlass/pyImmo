@@ -26,6 +26,11 @@ def get_data(conn):
     cur.execute(SQL)
     return cur;
 
+def delete_data(conn, ids):
+  SQL = "DELETE FROM ADS2 WHERE id = ?"
+  conn.executemany(SQL, ids)
+  conn.commit()
+
 
 def insert_data(conn, data):
     sql = "INSERT INTO ADS_FULL(ADID, TITLE, DESCRIPTION, PRICE, ROOMS, SIZE, BATHROOMS, LEVEL) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"

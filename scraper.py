@@ -25,7 +25,12 @@ class Scraper:
         self.retry_delay = retry_delay
 
     def base_request(self, url):
-        response = self.session.get(url=url, proxies=self.proxies)
+        try:
+            response = self.session.get(url=url, proxies=self.proxies)
+        except requests.exceptions.ConnectionError as e:
+            logging.debug(f"Connection failed, sleeping for {self.retry_delay} seconds")
+            time.sleep(self.retry_delay)
+            self.base_request(url)
         try:
             response.raise_for_status()
         except requests.HTTPError as e:
@@ -68,11 +73,17 @@ class ImmoScraper(Scraper):
             time.sleep(1)
 
     def get_ad(self, id):
-        page = f"https://www.immobiliare.it/annunci/{id}/"
-        soup = BeautifulSoup(self.base_request(page).text, 'lxml')
+        url = f"https://www.immobiliare.it/annunci/{id}/"
+        page = None
+        try:
+            page = self.base_request(url).text
+        except requests.exceptions.HTTPError:
+            return None
+        soup = BeautifulSoup(page, 'lxml')
+        
         title = soup.find('h1', {'class': 'title-detail'}).text.strip()
         
-        if 'asta' in title.lower() or title.lower().startswith('villa'):
+        if 'asta' in title.lower(): # or title.lower().startswith('villa'):
             return None
         
         desc = None
@@ -81,7 +92,7 @@ class ImmoScraper(Scraper):
         brooms = None
         rooms = None
 
-        p = soup.find('li', {'class': 'features__price'}).text.strip()
+        p = soup.find('li', {'class': 'features__price'}).find('span').text.strip()
         try:
             price = int(''.join(re.findall(r'(\d+)', p)))
         except ValueError:
@@ -100,8 +111,12 @@ class ImmoScraper(Scraper):
                 size = f.find('span').text.strip()
 
         if not(size):
-            size = int(float(soup.select(
+            try:
+                size = int(float(soup.select(
                 'div.row.overflow-x-auto.box-consistenze table tfoot tr td div')[0].text.replace(',', '.')))
+            except IndexError:
+                size = -1
+
 
         try:
             desc = soup.find('div', {'class': 'description-text'}).text.strip()
